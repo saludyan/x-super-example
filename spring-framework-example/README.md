@@ -217,10 +217,104 @@ Animal(name=小黄, category=狗, color=黄色)
 - `getResources()` 跟`ResourcePatternResolver`不同,它只返回单个`Resource`
 - `getClassLoader():ClassLoader` : 公开此资源加载器使用的类加载器
 
-> 好吧,看了那么多接口和方法,直接看依赖图吧
+> 好吧,看了那么多接口和方法,后面开始分析具体实现
 
 ApplicationContext依赖如下:
 
 ![ApplicationContext](uml/ApplicationContext.png)
 
-##### 具体实现 `ClassPathXmlApplicationContext`
+#### 具体实现 `ClassPathXmlApplicationContext`
+
+`ClassPathXmlApplicationContext`提供了多个构造方法,先列出所有参数
+
+- `String[] configLocations` 多个路径,可以说是多个`xml`的路径
+- `ApplicationContext parent` 父`ApplicationContext`
+- `boolean refresh` 是否刷新,默认`true`
+- `String[] paths` 类路径中的相对（或绝对）路径
+- `Class` 用于加载资源的类（给定路径的基础）
+
+我们目前只看`Simple`中的构造方法,其它先不管,当`new`的时候,它会一直往父类调用构造方法`super(parent)`
+我们这里`parent`肯定是空的,可以看看我画的图,到底往上调了多少层
+
+![ClassPathXmlApplicationContext](uml/WechatIMG226.png)
+
+到最后`AbstractApplicationContext`他会调用自己`this()`构造方法,`AbstractApplicationContext`抽象类中,一个字段
+
+```java
+    private ResourcePatternResolver resourcePatternResolver;
+```
+
+`this()`构造方法会调用`getResourcePatternResolver()`来填充该字段
+
+```java
+    protected ResourcePatternResolver getResourcePatternResolver() {
+		return new PathMatchingResourcePatternResolver(this);
+	}
+```
+
+`getResourcePatternResolver()`会返回一个`new PathMatchingResourcePatternResolver(this)`实例,相当于
+
+```java
+new PathMatchingResourcePatternResolver(new ClassPathXmlApplicationContext());
+```
+
+继续往下走是`setConfigLocations(configLocations);`
+
+```java
+    public void setConfigLocations(@Nullable String... locations) {
+		if (locations != null) {
+			Assert.noNullElements(locations, "Config locations must not be null");
+			this.configLocations = new String[locations.length];
+			for (int i = 0; i < locations.length; i++) {
+				this.configLocations[i] = resolvePath(locations[i]).trim();
+			}
+		}
+		else {
+			this.configLocations = null;
+		}
+	}
+```
+
+这个也比较绕,我按顺序列一下
+
+- 调用的父类的`AbstractRefreshableConfigApplicationContext.setConfigLocations`,`ClassPathXmlApplicationContext`自己并没有重写这个方法
+- 首先遍历传入的`locations`(也就是`Simple.xml`)
+- 调用`resolvePath(String)`处理文件路径
+- `resolvePath(String)`会获取提供的环境`environment`
+- 如果`environment`为空,会创建一个`StandardEnvironment`实例
+- 因为`StandardEnvironment`继承`AbstractEnvironment`,创建是会调用`AbstractEnvironment`构造方法
+- `AbstractEnvironment`会调用自己的`customizePropertySources`方法
+- 由于`StandardEnvironment`重写了`customizePropertySources`
+- 所以会执行`StandardEnvironment.customizePropertySources()`
+- `customizePropertySources`将会加载`systemEnvironment,systemProperties`系统变量和系统配置
+- `environment`初始化完成之后将会调用`AbstractEnvironment.resolveRequiredPlaceholders(path)`
+- 接着将会调用`AbstractEnvironment.propertyResolver`
+    
+    - `AbstractEnvironment.propertyResolver`默认初始化实例就是`PropertySourcesPropertyResolver`
+    - 这里要看清楚`PropertySourcesPropertyResolver`是继承`AbstractPropertyResolver`
+    - 所以等于调用`AbstractPropertyResolver.resolveRequiredPlaceholders(String)`这个方法
+
+```java
+	@Override
+	public String resolveRequiredPlaceholders(String text) throws IllegalArgumentException {
+		if (this.strictHelper == null) {
+			this.strictHelper = createPlaceholderHelper(false);
+		}
+		return doResolvePlaceholders(text, this.strictHelper);
+	}
+```
+
+- `resolveRequiredPlaceholders` 这个方法里面还会初始化一个叫`strictHelper`
+- `strictHelper`为空将会实例`PropertyPlaceholderHelper`,用来处理`property`的占位符的,如`[]${}()`,和一定的规则
+- 我们传入的值`Simple.xml`并没有使用任何占位符,所以直接返回`Simple.xml`
+- 最后将会把`locations` 赋予`AbstractRefreshableConfigApplicationContext.configLocations`字段
+- (暂时未知`StandardEnvironment`获取系统变量和配置做什么,这里先跳过不管)
+
+最后看看`StandardEnvironment`的依赖图
+
+![StandardEnvironment](uml/StandardEnvironment.png)
+
+
+再往下是`refresh`,默认是true
+
+(今天先写到这里...好累)
