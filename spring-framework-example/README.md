@@ -20,7 +20,7 @@ public class Animal {
 
 ### 创建 `Simple.java` 类
 代码如下:
-```java
+```
 public static void main(String[] args) {
         ApplicationContext context = new ClassPathXmlApplicationContext("Simple.xml");
         Animal animal = (Animal) context.getBean("animal");
@@ -175,7 +175,7 @@ Animal(name=小黄, category=狗, color=黄色)
 
 `ApplicationEvent`最终也会转成`Object`,看下面代码
 
-```java
+```
     default void publishEvent(ApplicationEvent event) {
 		publishEvent((Object) event);
 	}
@@ -240,13 +240,13 @@ ApplicationContext依赖如下:
 
 到最后`AbstractApplicationContext`他会调用自己`this()`构造方法,`AbstractApplicationContext`抽象类中,一个字段
 
-```java
+```
     private ResourcePatternResolver resourcePatternResolver;
 ```
 
 `this()`构造方法会调用`getResourcePatternResolver()`来填充该字段
 
-```java
+```
     protected ResourcePatternResolver getResourcePatternResolver() {
 		return new PathMatchingResourcePatternResolver(this);
 	}
@@ -254,13 +254,13 @@ ApplicationContext依赖如下:
 
 `getResourcePatternResolver()`会返回一个`new PathMatchingResourcePatternResolver(this)`实例,相当于
 
-```java
+```
 new PathMatchingResourcePatternResolver(new ClassPathXmlApplicationContext());
 ```
 
 继续往下走是`setConfigLocations(configLocations);`
 
-```java
+```
     public void setConfigLocations(@Nullable String... locations) {
 		if (locations != null) {
 			Assert.noNullElements(locations, "Config locations must not be null");
@@ -294,7 +294,7 @@ new PathMatchingResourcePatternResolver(new ClassPathXmlApplicationContext());
     - 这里要看清楚`PropertySourcesPropertyResolver`是继承`AbstractPropertyResolver`
     - 所以等于调用`AbstractPropertyResolver.resolveRequiredPlaceholders(String)`这个方法
 
-```java
+```
 	@Override
 	public String resolveRequiredPlaceholders(String text) throws IllegalArgumentException {
 		if (this.strictHelper == null) {
@@ -317,4 +317,116 @@ new PathMatchingResourcePatternResolver(new ClassPathXmlApplicationContext());
 
 再往下是`refresh`,默认是true
 
-(今天先写到这里...好累)
+实际调用的是`AbstractApplicationContext.refresh()`
+
+因为`ClassPathXmlApplicationContext`简介继承了`AbstractApplicationContext`如下图
+
+![StandardEnvironment](uml/WechatIMG234.png)
+
+```
+    // 去掉了日志的输出
+	public void refresh() throws BeansException, IllegalStateException {
+		synchronized (this.startupShutdownMonitor) {
+		    // 准备上下文刷新
+			//Prepare this context for refreshing.
+			prepareRefresh();
+
+            // 告诉子类刷新内部bean工厂。
+            // 1. 如果存在beanFactory,则清空,重新创建
+			// Tell the subclass to refresh the internal bean factory.
+			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
+
+			// Prepare the bean factory for use in this context.
+			prepareBeanFactory(beanFactory);
+
+			try {
+				// Allows post-processing of the bean factory in context subclasses.
+				postProcessBeanFactory(beanFactory);
+
+				// Invoke factory processors registered as beans in the context.
+				invokeBeanFactoryPostProcessors(beanFactory);
+
+				// Register bean processors that intercept bean creation.
+				registerBeanPostProcessors(beanFactory);
+
+				// Initialize message source for this context.
+				initMessageSource();
+
+				// Initialize event multicaster for this context.
+				initApplicationEventMulticaster();
+
+				// Initialize other special beans in specific context subclasses.
+				onRefresh();
+
+				// Check for listener beans and register them.
+				registerListeners();
+
+				// Instantiate all remaining (non-lazy-init) singletons.
+				finishBeanFactoryInitialization(beanFactory);
+
+				// Last step: publish corresponding event.
+				finishRefresh();
+			}
+
+			catch (BeansException ex) {
+				// Destroy already created singletons to avoid dangling resources.
+				destroyBeans();
+
+				// Reset 'active' flag.
+				cancelRefresh(ex);
+
+				// Propagate exception to caller.
+				throw ex;
+			}
+
+			finally {
+				// Reset common introspection caches in Spring's core, since we
+				// might not ever need metadata for singleton beans anymore...
+				resetCommonCaches();
+			}
+		}
+	}
+```
+
+吐血分析又要开始,读`spring`源码唯有死磕
+
+1. 首先看看`prepareRefresh()`做了什么
+
+```
+    // 这里去掉了日志输出部分代码
+    protected void prepareRefresh() {
+        // 1. 设置 startupDate 时间为当前
+		this.startupDate = System.currentTimeMillis();
+		// 2. 标记此上下文是否已关闭的。
+		this.closed.set(false);
+		// 3. 标记此上下文当前是否处于活动状态。
+		this.active.set(true);
+
+		// 4. 在上下文环境中初始化任何占位符属性源
+		initPropertySources();
+
+        // 5. 验证所有标记为“必需”的属性是否可解析
+        // (实质上就看看environment的key值是否为空...)
+		getEnvironment().validateRequiredProperties();
+
+        // 6. 早期发布的ApplicationEvents,清空?
+		this.earlyApplicationEvents = new LinkedHashSet<>();
+	}
+```
+
+2. 下面来看
+
+```
+// 获取一个新的`BeanFactory`
+ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
+```
+
+调用的是`AbstractApplicationContext.obtainFreshBeanFactory()`
+
+```
+    protected ConfigurableListableBeanFactory obtainFreshBeanFactory() {
+		refreshBeanFactory();
+		return getBeanFactory();
+	}
+```
+
