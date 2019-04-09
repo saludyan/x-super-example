@@ -323,7 +323,7 @@ new PathMatchingResourcePatternResolver(new ClassPathXmlApplicationContext());
 
 ![StandardEnvironment](uml/WechatIMG234.png)
 
-```
+```java
     // 去掉了日志的输出
 	public void refresh() throws BeansException, IllegalStateException {
 		synchronized (this.startupShutdownMonitor) {
