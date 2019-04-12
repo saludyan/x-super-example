@@ -491,12 +491,12 @@ ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 		initBeanDefinitionReader(beanDefinitionReader);
 		
 		// 6. loadBeanDefinitions(beanDefinitionReader)
-        //    6.1) 方法名意思:读取bean的定义
-        //    6.2) 并且把beanDefinitionReader传入
-        //    6.3) 具体实现就是调用beanDefinitionReand的loadBeanDefinitions
-        //    6.4) 先获取configResources,如果不为空,开始读取bean定义 -- 这里为空
-        //    6.5) 然后获取configLocations,就是例子中传入"Simple.xml"
-        //    6.6) 最终会调用传入的"beanDefinitionReader.loadBeanDefinitions()"
+		//    6.1) 方法名意思:读取bean的定义
+		//    6.2) 并且把beanDefinitionReader传入
+		//    6.3) 具体实现就是调用beanDefinitionReand的loadBeanDefinitions
+		//    6.4) 先获取configResources,如果不为空,开始读取bean定义 -- 这里为空
+		//    6.5) 然后获取configLocations,就是例子中传入"Simple.xml"
+		//    6.6) 最终会调用传入的"beanDefinitionReader.loadBeanDefinitions()"
 		loadBeanDefinitions(beanDefinitionReader);
 	}
 ```
