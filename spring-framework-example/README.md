@@ -680,10 +680,10 @@ protected void processBeanDefinition(Element ele, BeanDefinitionParserDelegate d
     // ( 代码经过删减,先分析主要部分)
     public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition){
 		if (beanDefinition instanceof AbstractBeanDefinition) {
-             //校验该bean是否有方法重载(会抛出异常->无法将静态工厂方法与方法重写组合：静态工厂方法必须创建实例)
+			//校验该bean是否有方法重载(会抛出异常->无法将静态工厂方法与方法重写组合：静态工厂方法必须创建实例)
 			((AbstractBeanDefinition) beanDefinition).validate();
 		}
-        // 从定义中获取已定义bean(因为我们是刷新,这里肯定为空,TODO 后面关注什么时候会不为null)
+		// 从定义中获取已定义bean(因为我们是刷新,这里肯定为空,TODO 后面关注什么时候会不为null)
 		BeanDefinition existingDefinition = this.beanDefinitionMap.get(beanName);
 		if (existingDefinition != null) {
 			// (...略) 暂时略过
@@ -717,7 +717,7 @@ protected void processBeanDefinition(Element ele, BeanDefinitionParserDelegate d
 			this.frozenBeanDefinitionNames = null;
 		}
         
-        // 检查是否存在定义 || 包含单例
+		// 检查是否存在定义 || 包含单例
 		if (existingDefinition != null || containsSingleton(beanName)) {
 		    // 重置给定bean的所有bean定义缓存，包括从中派生的bean的缓存。
 		    // 本次调试并未进入该方法(跳过)
