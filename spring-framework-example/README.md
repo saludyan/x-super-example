@@ -482,12 +482,12 @@ ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 		beanDefinitionReader.setResourceLoader(this);
 		
 		// 4. 设置 beanDefinitionReader.setEntityResolver(new ResourceEntityResolver(this))
-        //    4.1) ResourceEntityResolver 资源实体解释器
-        //    4.2) this = ClassPathXmlApplicationContext
+		//    4.1) ResourceEntityResolver 资源实体解释器
+		//    4.2) this = ClassPathXmlApplicationContext
 		beanDefinitionReader.setEntityResolver(new ResourceEntityResolver(this));
 
 		// 5. 初始化 initBeanDefinitionReader
-        //    5.1) 里面只执行了 reader.setValidating(this.validating); 是否开启验证,默认为true
+		//    5.1) 里面只执行了 reader.setValidating(this.validating); 是否开启验证,默认为true
 		initBeanDefinitionReader(beanDefinitionReader);
 		
 		// 6. loadBeanDefinitions(beanDefinitionReader)
@@ -639,7 +639,7 @@ protected void processBeanDefinition(Element ele, BeanDefinitionParserDelegate d
 			AbstractBeanDefinition bd = createBeanDefinition(className, parent);
 
 			// (...省略) 处理各种xml标签
-            // 返回
+			// 返回
 			return bd;
 		}//..省略异常
 		finally {
@@ -680,7 +680,7 @@ protected void processBeanDefinition(Element ele, BeanDefinitionParserDelegate d
     // ( 代码经过删减,先分析主要部分)
     public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition){
 		if (beanDefinition instanceof AbstractBeanDefinition) {
-		    //校验该bean是否有方法重载(会抛出异常->无法将静态工厂方法与方法重写组合：静态工厂方法必须创建实例)
+            //校验该bean是否有方法重载(会抛出异常->无法将静态工厂方法与方法重写组合：静态工厂方法必须创建实例)
 			((AbstractBeanDefinition) beanDefinition).validate();
 		}
         // 从定义中获取已定义bean(因为我们是刷新,这里肯定为空,TODO 后面关注什么时候会不为null)
