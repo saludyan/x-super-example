@@ -1,5 +1,4 @@
 *.class
-
 test-output
 
 # Mobile Tools for Java (J2ME)
@@ -38,9 +37,8 @@ super-doctor-api/module-gateway/src/main/resources/static/img/test/
 # OSX
 # Icon must end with two \r
 Icon
-.data
-.gitignore
-log
+
+
 ._*
 .DS_Store
 .AppleDouble

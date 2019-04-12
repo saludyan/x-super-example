@@ -254,7 +254,7 @@ ApplicationContext依赖如下:
 
 `getResourcePatternResolver()`会返回一个`new PathMatchingResourcePatternResolver(this)`实例,相当于
 
-```
+```java
 new PathMatchingResourcePatternResolver(new ClassPathXmlApplicationContext());
 ```
 
@@ -294,7 +294,7 @@ new PathMatchingResourcePatternResolver(new ClassPathXmlApplicationContext());
     - 这里要看清楚`PropertySourcesPropertyResolver`是继承`AbstractPropertyResolver`
     - 所以等于调用`AbstractPropertyResolver.resolveRequiredPlaceholders(String)`这个方法
 
-```
+```java
 	@Override
 	public String resolveRequiredPlaceholders(String text) throws IllegalArgumentException {
 		if (this.strictHelper == null) {
@@ -392,7 +392,7 @@ new PathMatchingResourcePatternResolver(new ClassPathXmlApplicationContext());
 
 1. 首先看看`prepareRefresh()`做了什么
 
-```
+```java
     // 这里去掉了日志输出部分代码
     protected void prepareRefresh() {
         // 1. 设置 startupDate 时间为当前
