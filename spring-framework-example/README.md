@@ -20,7 +20,7 @@ public class Animal {
 
 ### 创建 `Simple.java` 类
 代码如下:
-```
+```java
 public static void main(String[] args) {
         ApplicationContext context = new ClassPathXmlApplicationContext("Simple.xml");
         Animal animal = (Animal) context.getBean("animal");
@@ -175,7 +175,7 @@ Animal(name=小黄, category=狗, color=黄色)
 
 `ApplicationEvent`最终也会转成`Object`,看下面代码
 
-```
+```java
     default void publishEvent(ApplicationEvent event) {
 		publishEvent((Object) event);
 	}
@@ -240,13 +240,13 @@ ApplicationContext依赖如下:
 
 到最后`AbstractApplicationContext`他会调用自己`this()`构造方法,`AbstractApplicationContext`抽象类中,一个字段
 
-```
+```java
     private ResourcePatternResolver resourcePatternResolver;
 ```
 
 `this()`构造方法会调用`getResourcePatternResolver()`来填充该字段
 
-```
+```java
     protected ResourcePatternResolver getResourcePatternResolver() {
 		return new PathMatchingResourcePatternResolver(this);
 	}
@@ -260,7 +260,7 @@ new PathMatchingResourcePatternResolver(new ClassPathXmlApplicationContext());
 
 继续往下走是`setConfigLocations(configLocations);`
 
-```
+```java
     public void setConfigLocations(@Nullable String... locations) {
 		if (locations != null) {
 			Assert.noNullElements(locations, "Config locations must not be null");
@@ -319,7 +319,7 @@ new PathMatchingResourcePatternResolver(new ClassPathXmlApplicationContext());
 
 实际调用的是`AbstractApplicationContext.refresh()`
 
-因为`ClassPathXmlApplicationContext`简介继承了`AbstractApplicationContext`如下图
+因为`ClassPathXmlApplicationContext`间接继承了`AbstractApplicationContext`如下图
 
 ![StandardEnvironment](uml/WechatIMG234.png)
 
@@ -416,17 +416,341 @@ new PathMatchingResourcePatternResolver(new ClassPathXmlApplicationContext());
 
 2. 下面来看
 
-```
+```java
 // 获取一个新的`BeanFactory`
 ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 ```
 
 调用的是`AbstractApplicationContext.obtainFreshBeanFactory()`
 
-```
+```java
     protected ConfigurableListableBeanFactory obtainFreshBeanFactory() {
 		refreshBeanFactory();
 		return getBeanFactory();
 	}
 ```
 
+`refreshBeanFactory()`调用的是`AbstractRefreshableApplicationContext.refreshBeanFactory()`
+
+```java
+
+    protected final void refreshBeanFactory() throws BeansException {
+        // 如果存在beanFactory会销毁并且关闭
+		if (hasBeanFactory()) {
+		    //TODO 这销毁的方法,后面再详看
+			destroyBeans();
+			closeBeanFactory();
+		}
+		try {
+		    // 新建 DefaultListableBeanFactory,本例子中没有parent,所以直接创建
+			DefaultListableBeanFactory beanFactory = createBeanFactory();
+			// 设置一个UUID
+			beanFactory.setSerializationId(getId());
+			// 定制beanFactory
+			// allowBeanDefinitionOverriding:是否设置该factory优先级, 默认为 null 跳过
+			// allowCircularReferences: 是否设置该factory可以循环引用, 默认为 null 跳过
+			customizeBeanFactory(beanFactory);
+			// 读取Bean定义(看后面的代码段)
+			loadBeanDefinitions(beanFactory);
+			synchronized (this.beanFactoryMonitor) {
+				this.beanFactory = beanFactory;
+			}
+		}
+		catch (IOException ex) {
+			throw new ApplicationContextException("I/O error parsing bean definition source for " + getDisplayName(), ex);
+		}
+	}
+
+```
+
+更加深入的分析上面代码段中的`loadBeanDefinitions`
+
+首先调用的是 `AbstractXmlApplicationContext.loadBeanDefinitions()`(因为是继承关系)
+ 
+```java
+@Override
+	protected void loadBeanDefinitions(DefaultListableBeanFactory beanFactory) throws BeansException, IOException {
+        
+		// 1. 为给定BeanFactory创建新的xmlBeanDefinitionReader
+		// 这个reader设置了BeanFactory至关重要,因为将bean添加到缓存中需要用到
+		XmlBeanDefinitionReader beanDefinitionReader = new XmlBeanDefinitionReader(beanFactory);
+
+		// 2. 设置该xmlBeanDefinitionReader的环境变量
+		beanDefinitionReader.setEnvironment(this.getEnvironment());
+		
+		// 3. 设置 beanDefinitionReader.setResourceLoader(this):this = ClassPathXmlApplicationContext
+		beanDefinitionReader.setResourceLoader(this);
+		
+		// 4. 设置 beanDefinitionReader.setEntityResolver(new ResourceEntityResolver(this))
+        //    4.1) ResourceEntityResolver 资源实体解释器
+        //    4.2) this = ClassPathXmlApplicationContext
+		beanDefinitionReader.setEntityResolver(new ResourceEntityResolver(this));
+
+		// 5. 初始化 initBeanDefinitionReader
+        //    5.1) 里面只执行了 reader.setValidating(this.validating); 是否开启验证,默认为true
+		initBeanDefinitionReader(beanDefinitionReader);
+		
+		// 6. loadBeanDefinitions(beanDefinitionReader)
+        //    6.1) 方法名意思:读取bean的定义
+        //    6.2) 并且把beanDefinitionReader传入
+        //    6.3) 具体实现就是调用beanDefinitionReand的loadBeanDefinitions
+        //    6.4) 先获取configResources,如果不为空,开始读取bean定义 -- 这里为空
+        //    6.5) 然后获取configLocations,就是例子中传入"Simple.xml"
+        //    6.6) 最终会调用传入的"beanDefinitionReader.loadBeanDefinitions()"
+		loadBeanDefinitions(beanDefinitionReader);
+	}
+```
+
+- 首先判断`configResources`和`configLocations`是否存在
+- 跟着调用`AbstractBeanDefinitionReader.loadBeanDefinitions(configResources/configLocations)`
+- 会看到代码不停调用`loadBeanDefinitions`的各种重载方法,这个过程再不断的解析传入的配置文件
+- 接着调用`XmlBeanDefinitionReader.doLoadBeanDefinitions()`
+- 接着调用`XmlBeanDefinitionReader.registerBeanDefinitions()`
+
+```java
+    public int registerBeanDefinitions(Document doc, Resource resource) throws BeanDefinitionStoreException {
+        // 创建 DefaultBeanDefinitionDocumentReader
+		BeanDefinitionDocumentReader documentReader = createBeanDefinitionDocumentReader();
+		// 获取已定义的bean统计
+		int countBefore = getRegistry().getBeanDefinitionCount();
+		// 新建一个XmlReaderContext,重头戏再这个registerBeanDefinitions()
+		documentReader.registerBeanDefinitions(doc, createReaderContext(resource));
+		return getRegistry().getBeanDefinitionCount() - countBefore;
+	}
+```
+
+- `registerBeanDefinitions()`会执行父类的`DefaultBeanDefinitionDocumentReader.registerBeanDefinitions()`
+- 传入`readContext(XmlReadContext)` 后最终执行 `doRegisterBeanDefinitions`看下面代码
+
+```java
+    protected void doRegisterBeanDefinitions(Element root) {
+        // 创建bean定义解释器的代理
+		BeanDefinitionParserDelegate parent = this.delegate;
+		// 创建代理时初始化ReaderContext(XmlReadContext)
+		// root和parent都为null
+		this.delegate = createDelegate(getReaderContext(), root, parent);
+		// 是否默认命名空间(以下都是解释xml结构的代码)
+		if (this.delegate.isDefaultNamespace(root)) {
+			// 略...
+		}
+
+        // 预处理(其实什么也没做)
+		preProcessXml(root);
+		// 解释(xml)bean定义,直到找到<bean>这个xml标签
+		// 会调用 <1> processBeanDefinition(ele, delegate) 这个方法
+		parseBeanDefinitions(root, this.delegate);
+		//
+		postProcessXml(root);
+
+		this.delegate = parent;
+	}
+```
+
+- <1> `processBeanDefinition` 详细代码如下
+
+```java
+protected void processBeanDefinition(Element ele, BeanDefinitionParserDelegate delegate) {
+        // <1.1> 创建 BeanDefinitionHolder
+		BeanDefinitionHolder bdHolder = delegate.parseBeanDefinitionElement(ele);
+		if (bdHolder != null) {
+		    // 对标签下的自定义标签，再次解析(解释代码我不分析,无非就是对XML深度解释)
+			bdHolder = delegate.decorateBeanDefinitionIfRequired(ele, bdHolder);
+			
+			// 这里传入的是BeanDefinitionHolder和 <1.2> getReaderContext().getRegistry() = DefaultListableBeanFactory
+			// <1.3> 真正注册Bean到内存的方法(饶了好大好大的一圈...)
+			BeanDefinitionReaderUtils.registerBeanDefinition(bdHolder, getReaderContext().getRegistry());
+			// 发送注册事件
+			// <1.4>实例 BeanComponentDefinition(bdHolder)
+			getReaderContext().fireComponentRegistered(new BeanComponentDefinition(bdHolder));
+		}
+	}
+```
+
+- <1.1> 创建 BeanDefinitionHolder
+
+```java
+    public BeanDefinitionHolder parseBeanDefinitionElement(Element ele, @Nullable BeanDefinition containingBean) {
+        // 获取id(这里为null)
+		String id = ele.getAttribute(ID_ATTRIBUTE);
+		// 获取name(这里为animal)
+		String nameAttr = ele.getAttribute(NAME_ATTRIBUTE);
+
+		List<String> aliases = new ArrayList<>();
+		if (StringUtils.hasLength(nameAttr)) {
+		    // 把名称按 ",;" 分割成数组
+			String[] nameArr = StringUtils.tokenizeToStringArray(nameAttr, MULTI_VALUE_ATTRIBUTE_DELIMITERS);
+			// 添加到别名aliases集合
+			aliases.addAll(Arrays.asList(nameArr));
+		}
+
+		String beanName = id;
+		// beanName = aliases[0]
+		if (!StringUtils.hasText(beanName) && !aliases.isEmpty()) {
+			beanName = aliases.remove(0);
+			if (logger.isTraceEnabled()) {
+				logger.trace("No XML 'id' specified - using '" + beanName +
+						"' as bean name and " + aliases + " as aliases");
+			}
+		}
+        // 检查是否唯一
+		if (containingBean == null) {
+			checkNameUniqueness(beanName, aliases, ele);
+		}
+        
+        // <1.1.1> 创建 AbstractBeanDefinition(实例是GenericBeanDefinition)
+		AbstractBeanDefinition beanDefinition = parseBeanDefinitionElement(ele, beanName, containingBean);
+		if (beanDefinition != null) {
+			if (!StringUtils.hasText(beanName)) {
+				// ...这里省略了,主要逻辑是没有beanName,去生成一个beanName(个人觉得并不是很重要)
+			}
+			String[] aliasesArray = StringUtils.toStringArray(aliases);
+			// 最后通过多参数方式新建一个BeanDefinitionHolder
+			return new BeanDefinitionHolder(beanDefinition, beanName, aliasesArray);
+		}
+
+		return null;
+	}
+```
+
+- <1.1.1> 创建 AbstractBeanDefinition(实例是GenericBeanDefinition)
+
+```java
+	public AbstractBeanDefinition parseBeanDefinitionElement(
+			Element ele, String beanName, @Nullable BeanDefinition containingBean) {
+
+        //放入解释状态的`LinkedList<Entry> state`中 
+        //官方解释: 简单的linkedlist结构，用于在分析过程中跟踪逻辑位置。@link entry entries在解析阶段的每个点以特定于读卡器的方式添加到LinkedList。
+		this.parseState.push(new BeanEntry(beanName));
+
+        // 解释xml中的className,这里为`Simple.xml`的 `class="com.x.sp.example.spring.entity.Animal"`
+		String className = null;
+		if (ele.hasAttribute(CLASS_ATTRIBUTE)) {
+			className = ele.getAttribute(CLASS_ATTRIBUTE).trim();
+		}
+		// 是否parent的xml标签(`Simple.xml`中没有)
+		String parent = null;
+		if (ele.hasAttribute(PARENT_ATTRIBUTE)) {
+			parent = ele.getAttribute(PARENT_ATTRIBUTE);
+		}
+
+		try {
+		    // 实现是调用BeanDefinitionReaderUtils.createBeanDefinition工具类
+		    // 新建 GenericBeanDefinition的实例
+			AbstractBeanDefinition bd = createBeanDefinition(className, parent);
+
+			// (...省略) 处理各种xml标签
+            // 返回
+			return bd;
+		}//..省略异常
+		finally {
+		    // 从处理状态中弹出
+			this.parseState.pop();
+		}
+		return null;
+	}
+```
+
+- <1.2> `getReaderContext().getRegistry()` = `DefaultListableBeanFactory`
+
+    - 因为`DefaultListableBeanFactory`实现`BeanDefinitionRegistry`接口
+    - `getReaderContext().getRegistry()`就是获取`BeanDefinitionRegistry`实例
+
+- <1.3> `BeanDefinitionReaderUtils.registerBeanDefinition(bdHolder, getReaderContext().getRegistry());`
+
+```java
+    public static void registerBeanDefinition(BeanDefinitionHolder definitionHolder, BeanDefinitionRegistry registry) {
+        // 获取beanName
+		String beanName = definitionHolder.getBeanName();
+		// <1.3.1>调用 DefaultListableBeanFactory.registerBeanDefinition
+		registry.registerBeanDefinition(beanName, definitionHolder.getBeanDefinition());
+
+		// Register aliases for bean name, if any.
+		String[] aliases = definitionHolder.getAliases();
+		if (aliases != null) {
+			for (String alias : aliases) {
+				registry.registerAlias(beanName, alias);
+			}
+		}
+	}
+```
+
+- <1.3.1>调用 `DefaultListableBeanFactory.registerBeanDefinition`
+
+```java
+    // ( 代码经过删减,先分析主要部分)
+    public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition){
+		if (beanDefinition instanceof AbstractBeanDefinition) {
+		    //校验该bean是否有方法重载(会抛出异常->无法将静态工厂方法与方法重写组合：静态工厂方法必须创建实例)
+			((AbstractBeanDefinition) beanDefinition).validate();
+		}
+        // 从定义中获取已定义bean(因为我们是刷新,这里肯定为空,TODO 后面关注什么时候会不为null)
+		BeanDefinition existingDefinition = this.beanDefinitionMap.get(beanName);
+		if (existingDefinition != null) {
+			// (...略) 暂时略过
+		} else {
+		    // 检查这个工厂的bean创建阶段是否已经开始，即是否同时将任何bean标记为已创建。
+			if (hasBeanCreationStarted()) {
+				// 无法再修改启动时间集合元素（用于稳定迭代）
+				// (下面代码暂时跳过分析)
+				synchronized (this.beanDefinitionMap) {
+					this.beanDefinitionMap.put(beanName, beanDefinition);
+					List<String> updatedDefinitions = new ArrayList<>(this.beanDefinitionNames.size() + 1);
+					updatedDefinitions.addAll(this.beanDefinitionNames);
+					updatedDefinitions.add(beanName);
+					this.beanDefinitionNames = updatedDefinitions;
+					if (this.manualSingletonNames.contains(beanName)) {
+						Set<String> updatedSingletons = new LinkedHashSet<>(this.manualSingletonNames);
+						updatedSingletons.remove(beanName);
+						this.manualSingletonNames = updatedSingletons;
+					}
+				}
+			}
+			else {
+				// 放入定义BeanMap中(spring的bean容器应该就是放在这个Map了)
+				this.beanDefinitionMap.put(beanName, beanDefinition);
+				// 放入定义BeanNameMap中(名字集合)
+				this.beanDefinitionNames.add(beanName);
+				// TODO 这里为什么要删掉
+				this.manualSingletonNames.remove(beanName);
+			}
+			// 清空,暂时不关注,字面意思冻结bean定义名称
+			this.frozenBeanDefinitionNames = null;
+		}
+        
+        // 检查是否存在定义 || 包含单例
+		if (existingDefinition != null || containsSingleton(beanName)) {
+		    // 重置给定bean的所有bean定义缓存，包括从中派生的bean的缓存。
+		    // 本次调试并未进入该方法(跳过)
+			resetBeanDefinition(beanName);
+		}
+	}
+```
+- <1.4> 实例化`BeanComponentDefinition`
+
+```java
+    public BeanComponentDefinition(BeanDefinitionHolder beanDefinitionHolder) {
+		super(beanDefinitionHolder);
+        // 读取内部的bean
+		List<BeanDefinition> innerBeans = new ArrayList<>();
+		// 读取引用的bean
+		List<BeanReference> references = new ArrayList<>();
+		PropertyValues propertyValues = beanDefinitionHolder.getBeanDefinition().getPropertyValues();
+		// 下面逻辑将是读取内部 or 引用的 bean(Simple.xml定义了是一些字段的属性)
+		for (PropertyValue propertyValue : propertyValues.getPropertyValues()) {
+			Object value = propertyValue.getValue();
+			if (value instanceof BeanDefinitionHolder) {
+				innerBeans.add(((BeanDefinitionHolder) value).getBeanDefinition());
+			}
+			else if (value instanceof BeanDefinition) {
+				innerBeans.add((BeanDefinition) value);
+			}
+			else if (value instanceof BeanReference) {
+				references.add((BeanReference) value);
+			}
+		}
+		this.innerBeanDefinitions = innerBeans.toArray(new BeanDefinition[0]);
+		this.beanReferences = references.toArray(new BeanReference[0]);
+	}
+```
+
+(未完待续)
